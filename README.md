@@ -8,7 +8,7 @@ The model formulas for hull and third-party liability (TPL) coverage for drones 
 Let $i$ be a drone in fleet $j$. The **gross hull premium** (GHP) for drone $i$ is:
 
 $$
-\text{GHP}(i) = 6\\% \times \text{WeightAdj}(i) \times \text{Value}(i)
+\text{GHP}(i) = 6\% \times \text{WeightAdj}(i) \times \text{Value}(i)
 $$
 
 where $\text{Value}(i)$ is the value of drone $i$, and $\text{WeightAdj}(i)$ is the weight adjustment factor:
@@ -33,7 +33,7 @@ Each drone buys a TPL layer of $\text{Limit}(i)$ in excess of $\text{Excess}(i)$
 First, the **base layer premium** (BLP) is the premium for the base limit of £1,000,000 with no excess:
 
 $$
-\text{BLP}(i) = 2\\% \times \text{Value}(i)
+\text{BLP}(i) = 2\% \times \text{Value}(i)
 $$
 
 (Unlike hull, no weight adjustment is applied.)
@@ -57,7 +57,7 @@ $$
 Let $k$ be a detachable camera. Every camera gets the same hull rate: the highest final hull rate among drones in the fleet that have a detachable camera and a non-zero value:
 
 $$
-\text{CamRate} = \max \big\lbrace\, 6\\% \times \text{WeightAdj}(i) \;:\; \text{drone } i \text{ has a detachable camera and } \text{Value}(i) > 0 \,\big\rbrace
+\text{CamRate} = \max \big\lbrace\, 6\% \times \text{WeightAdj}(i) \;:\; \text{drone } i \text{ has a detachable camera and } \text{Value}(i) > 0 \,\big\rbrace
 $$
 
 Since we don't know which drone a camera will be mounted on, it is priced as if it were on the riskiest eligible drone. The camera hull premium (CHP) is:
@@ -142,30 +142,30 @@ Customers may have a large fleet of $N$ drones but warrant that at most $n$ will
 
 **Method**
 
-1. Calculate $\text{GHP}(i)$ and $\text{GLP}(i)$ for each drone as above, and combine them:
+**Step 1.** Calculate $\text{GHP}(i)$ and $\text{GLP}(i)$ for each drone as above, and combine them:
 
-   $$
-   P(i) = \text{GHP}(i) + \text{GLP}(i)
-   $$
+$$
+P(i) = \text{GHP}(i) + \text{GLP}(i)
+$$
 
-2. Rank the drones with $\text{Value}(i) > 0$ by $P(i)$, highest first. Let $r(i)$ be drone $i$'s rank, with ties broken by serial number so the result is deterministic.
+**Step 2.** Rank the drones with $\text{Value}(i) > 0$ by $P(i)$, highest first. Let $r(i)$ be drone $i$'s rank, with ties broken by serial number so the result is deterministic.
 
-3. Keep the full premium for the top $n$ drones and charge £150 for the rest:
+**Step 3.** Keep the full premium for the top $n$ drones and charge £150 for the rest:
 
-   $$
-   P^{*}(i) =
-   \begin{cases}
-   P(i) & \text{if } r(i) \le n \\
-   150 & \text{if } r(i) > n
-   \end{cases}
-   $$
+$$
+P^{*}(i) =
+\begin{cases}
+P(i) & \text{if } r(i) \le n \\
+150 & \text{if } r(i) > n
+\end{cases}
+$$
 
-4. So that the premium summary can still show hull and TPL separately, split the £150 between them in the same proportions as the drone's full premium:
+**Step 4.** So that the premium summary can still show hull and TPL separately, split the £150 between them in the same proportions as the drone's full premium:
 
-   $$
-   \text{GHP}^{*}(i) = P^{*}(i) \times \frac{\text{GHP}(i)}{P(i)}, \qquad
-   \text{GLP}^{*}(i) = P^{*}(i) \times \frac{\text{GLP}(i)}{P(i)}
-   $$
+$$
+\text{GHP}^{*}(i) = P^{*}(i) \times \frac{\text{GHP}(i)}{P(i)}, \qquad
+\text{GLP}^{*}(i) = P^{*}(i) \times \frac{\text{GLP}(i)}{P(i)}
+$$
 
 If $N \le n$, every drone ranks in the top $n$, so nothing changes.
 
@@ -175,24 +175,24 @@ If $N \le n$, every drone ranks in the top $n$, so nothing changes.
 Most of the risk to cameras comes when they're in the air, and a camera can only be in the air while it is mounted on a flying drone. So at most
 
 $$
-m = \min\big(n,\; \\#\lbrace\, i : \text{drone } i \text{ has a detachable camera and } \text{Value}(i) > 0 \,\rbrace\big)
+m = \min\big(n,\; \#\lbrace\, i : \text{drone } i \text{ has a detachable camera and } \text{Value}(i) > 0 \,\rbrace\big)
 $$
 
 cameras can be airborne at once. The $m$ most valuable cameras are charged the full rate, and every other camera is charged a fixed £50.
 
 **Method**
 
-1. Rank the cameras with $\text{Value}(k) > 0$ by value, highest first. Let $s(k)$ be camera $k$'s rank, with ties broken by serial number.
+**Step 1.** Rank the cameras with $\text{Value}(k) > 0$ by value, highest first. Let $s(k)$ be camera $k$'s rank, with ties broken by serial number.
 
-2. Every camera has the same rate, so ranking by value gives the same order as ranking by premium. Charge the full premium for the top $m$ cameras and £50 for the rest:
+**Step 2.** Every camera has the same rate, so ranking by value gives the same order as ranking by premium. Charge the full premium for the top $m$ cameras and £50 for the rest:
 
-   $$
-   \text{CHP}^{*}(k) =
-   \begin{cases}
-   \text{CamRate} \times \text{Value}(k) & \text{if } s(k) \le m \\
-   50 & \text{if } s(k) > m
-   \end{cases}
-   $$
+$$
+\text{CHP}^{*}(k) =
+\begin{cases}
+\text{CamRate} \times \text{Value}(k) & \text{if } s(k) \le m \\
+50 & \text{if } s(k) > m
+\end{cases}
+$$
 
 If there are $m$ or fewer cameras, nothing changes.
 
