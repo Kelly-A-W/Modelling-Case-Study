@@ -8,7 +8,7 @@ The model formulas for hull and third-party liability (TPL) coverage for drones 
 Let $i$ be a drone in fleet $j$. The **gross hull premium** (GHP) for drone $i$ is:
 
 $$
-\text{GHP}(i) = 6\% \times \text{WeightAdj}(i) \times \text{Value}(i)
+\text{GHP}(i) = 0.06 \times \text{WeightAdj}(i) \times \text{Value}(i)
 $$
 
 where $\text{Value}(i)$ is the value of drone $i$, and $\text{WeightAdj}(i)$ is the weight adjustment factor:
@@ -16,9 +16,9 @@ where $\text{Value}(i)$ is the value of drone $i$, and $\text{WeightAdj}(i)$ is 
 $$
 \text{WeightAdj}(i) =
 \begin{cases}
-1.0 & \text{if drone } i \text{ weighs } 0\text{–}5\text{ kg} \\
-1.2 & \text{if drone } i \text{ weighs } 5\text{–}10\text{ kg} \\
-1.6 & \text{if drone } i \text{ weighs } 10\text{–}20\text{ kg} \\
+1.0 & \text{if drone } i \text{ weighs } 0\text{–}5\text{ kg} \cr
+1.2 & \text{if drone } i \text{ weighs } 5\text{–}10\text{ kg} \cr
+1.6 & \text{if drone } i \text{ weighs } 10\text{–}20\text{ kg} \cr
 2.5 & \text{if drone } i \text{ weighs } > 20\text{ kg}
 \end{cases}
 $$
@@ -33,7 +33,7 @@ Each drone buys a TPL layer of $\text{Limit}(i)$ in excess of $\text{Excess}(i)$
 First, the **base layer premium** (BLP) is the premium for the base limit of £1,000,000 with no excess:
 
 $$
-\text{BLP}(i) = 2\% \times \text{Value}(i)
+\text{BLP}(i) = 0.02 \times \text{Value}(i)
 $$
 
 (Unlike hull, no weight adjustment is applied.)
@@ -54,10 +54,10 @@ $$
 
 ## Detachable cameras
 
-Let $k$ be a detachable camera. Every camera gets the same hull rate: the highest final hull rate among drones in the fleet that have a detachable camera and a non-zero value:
+Let $k$ be a detachable camera, and let $C$ be the set of drones that have a detachable camera and $\text{Value}(i) > 0$. Every camera gets the same hull rate: the highest final hull rate among the drones in $C$:
 
 $$
-\text{CamRate} = \max \big\lbrace\, 6\% \times \text{WeightAdj}(i) \;:\; \text{drone } i \text{ has a detachable camera and } \text{Value}(i) > 0 \,\big\rbrace
+\text{CamRate} = \max_{i \in C} \big( 0.06 \times \text{WeightAdj}(i) \big)
 $$
 
 Since we don't know which drone a camera will be mounted on, it is priced as if it were on the riskiest eligible drone. The camera hull premium (CHP) is:
@@ -121,7 +121,7 @@ End Function
 Key properties:
 
 - $R(B) = 1$: the base limit is priced at exactly the base layer premium.
-- $R(2x) = (1 + z)\,R(x)$: this is the doubling rule. Because $(2x/B)^{\log_2(1+z)} = 2^{\log_2(1+z)} \cdot (x/B)^{\log_2(1+z)} = (1+z)\,R(x)$.
+- $R(2x) = (1 + z) R(x)$: this is the doubling rule. Because $(2x/B)^{\log_2(1+z)} = 2^{\log_2(1+z)} \cdot (x/B)^{\log_2(1+z)} = (1+z) R(x)$.
 - $R(0) = 0$ when $z > 0$, so a layer with no excess has $\text{ILF} = R(\text{Limit})$.
 - For $0 < z < 1$ the exponent is between 0 and 1, so the curve is increasing and concave. Higher layers cost less per £ of cover.
 
@@ -153,9 +153,9 @@ $$
 **Step 3.** Keep the full premium for the top $n$ drones and charge £150 for the rest:
 
 $$
-P^{*}(i) =
+P^{\ast}(i) =
 \begin{cases}
-P(i) & \text{if } r(i) \le n \\
+P(i) & \text{if } r(i) \le n \cr
 150 & \text{if } r(i) > n
 \end{cases}
 $$
@@ -163,8 +163,8 @@ $$
 **Step 4.** So that the premium summary can still show hull and TPL separately, split the £150 between them in the same proportions as the drone's full premium:
 
 $$
-\text{GHP}^{*}(i) = P^{*}(i) \times \frac{\text{GHP}(i)}{P(i)}, \qquad
-\text{GLP}^{*}(i) = P^{*}(i) \times \frac{\text{GLP}(i)}{P(i)}
+\text{GHP}^{\ast}(i) = P^{\ast}(i) \times \frac{\text{GHP}(i)}{P(i)}, \qquad
+\text{GLP}^{\ast}(i) = P^{\ast}(i) \times \frac{\text{GLP}(i)}{P(i)}
 $$
 
 If $N \le n$, every drone ranks in the top $n$, so nothing changes.
@@ -175,8 +175,10 @@ If $N \le n$, every drone ranks in the top $n$, so nothing changes.
 Most of the risk to cameras comes when they're in the air, and a camera can only be in the air while it is mounted on a flying drone. So at most
 
 $$
-m = \min\big(n,\; \#\lbrace\, i : \text{drone } i \text{ has a detachable camera and } \text{Value}(i) > 0 \,\rbrace\big)
+m = \min\big(n, \lvert C \rvert\big)
 $$
+
+where $\lvert C \rvert$ is the number of drones that have a detachable camera and a non-zero value (the set $C$ defined under [Detachable cameras](#detachable-cameras)).
 
 cameras can be airborne at once. The $m$ most valuable cameras are charged the full rate, and every other camera is charged a fixed £50.
 
@@ -187,9 +189,9 @@ cameras can be airborne at once. The $m$ most valuable cameras are charged the f
 **Step 2.** Every camera has the same rate, so ranking by value gives the same order as ranking by premium. Charge the full premium for the top $m$ cameras and £50 for the rest:
 
 $$
-\text{CHP}^{*}(k) =
+\text{CHP}^{\ast}(k) =
 \begin{cases}
-\text{CamRate} \times \text{Value}(k) & \text{if } s(k) \le m \\
+\text{CamRate} \times \text{Value}(k) & \text{if } s(k) \le m \cr
 50 & \text{if } s(k) > m
 \end{cases}
 $$
