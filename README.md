@@ -148,7 +148,7 @@ $$
 P(i) = \text{GHP}(i) + \text{GLP}(i)
 $$
 
-**Step 2.** Rank the drones with $\text{Value}(i) > 0$ by $P(i)$, highest first. Let $r(i)$ be drone $i$'s rank, with ties broken by serial number so the result is deterministic.
+**Step 2.** Rank the drones with $\text{Value}(i) > 0$ by $P(i)$, highest first. Let $r(i)$ be drone $i$'s rank, with ties broken at random (pass a seed to make the result reproducible).
 
 **Step 3.** Keep the full premium for the top $n$ drones and charge £150 for the rest:
 
@@ -184,7 +184,7 @@ cameras can be airborne at once. The $m$ most valuable cameras are charged the f
 
 **Method**
 
-**Step 1.** Rank the cameras with $\text{Value}(k) > 0$ by value, highest first. Let $s(k)$ be camera $k$'s rank, with ties broken by serial number.
+**Step 1.** Rank the cameras with $\text{Value}(k) > 0$ by value, highest first. Let $s(k)$ be camera $k$'s rank, with ties broken at random.
 
 **Step 2.** Every camera has the same rate, so ranking by value gives the same order as ranking by premium. Charge the full premium for the top $m$ cameras and £50 for the rest:
 
@@ -206,7 +206,7 @@ If there are $m$ or fewer cameras, nothing changes.
 
 
 # Limitations:
-1. Note that the extension introduces a "tie-breaking" issue: there may be more than $m$ drones in the top $m$. This will not effect the overall premium value, but it will mean that some of the tied drones will be arbitrarily assigned a base premium while the remaining will have a different premium. Eventhough it makes no difference at the total level, it is important to keep in mind when looking at the drone and camera level. 
+1. Note that the extension introduces a "tie-breaking" issue: there may be more than $m$ drones in the top $m$. This will not effect the overall premium value, but it will mean that some of the tied drones will be randomly assigned a base premium while the remaining will have a different premium. Eventhough it makes no difference at the total level, it is important to keep in mind when looking at the drone and camera level. 
 2. There is a potential 
 
 # Recomendations:
