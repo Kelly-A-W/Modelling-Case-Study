@@ -14,6 +14,14 @@ WEIGHT_ADJUSTMENTS = {
     "> 20kg": 2.5,
 }
 
+# Upper limit (kg, inclusive) of each weight band, for mapping exact weights to bands
+WEIGHT_BAND_LIMITS = {
+    "0 - 5kg": 5,
+    "5 - 10kg": 10,
+    "10 - 20kg": 20,
+    "> 20kg": float("inf"),
+}
+
 # Extensions: fixed premiums for drones and cameras that are not charged the full rate
 DRONE_BASE_PREMIUM = 150
 CAMERA_BASE_PREMIUM = 50

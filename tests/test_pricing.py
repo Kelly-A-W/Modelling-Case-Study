@@ -2,7 +2,7 @@ import unittest
 
 from drone_pricing.example_data import get_example_data
 from drone_pricing.data_structure import Submission
-from drone_pricing.pricing import NOT_PRICED, price_submission
+from drone_pricing.pricing import price_submission, weight_category
 
 
 def price(data, seed=0):
@@ -44,23 +44,85 @@ class TestSpreadsheetParity(unittest.TestCase):
         self.assertAlmostEqual(gross.total, 5774.449852998, places=6)
 
 
-class TestMissingValues(unittest.TestCase):
-    def test_zero_or_missing_value_is_flagged_not_priced(self):
+class TestWeightCategory(unittest.TestCase):
+    def test_exact_weights_map_to_bands(self):
+        for weight, band in [(0.5, "0 - 5kg"), (5, "0 - 5kg"), (5.1, "5 - 10kg"), (20, "10 - 20kg"), (25, "> 20kg")]:
+            with self.subTest(weight=weight):
+                self.assertEqual(weight_category(weight), band)
+
+    def test_band_labels_pass_through(self):
+        self.assertEqual(weight_category("5 - 10kg"), "5 - 10kg")
+
+    def test_exact_weights_give_spreadsheet_prices(self):
         data = get_example_data()
-        data["drones"][0]["value"] = 0
+        for drone, kg in zip(data["drones"], [3, 15, 7.5]):
+            drone["weight"] = kg
+        self.assertAlmostEqual(price(data).net_prem.total, 4042.114897099, places=6)
+
+
+class TestMissingInputs(unittest.TestCase):
+    def test_items_missing_inputs_are_removed_with_warning(self):
+        data = get_example_data()
+        del data["drones"][0]["weight"]
         data["detachable_cameras"][0]["value"] = None
         result = price(data)
-        drone, camera = result.drones[0], result.detachable_cameras[0]
-        self.assertEqual(drone.note, NOT_PRICED)
-        self.assertIsNone(drone.hull_premium)
-        self.assertEqual(camera.note, NOT_PRICED)
+        self.assertIsNone(result.drones[0].hull_premium)
+        self.assertIsNone(result.detachable_cameras[0].hull_premium)
         self.assertAlmostEqual(result.net_prem.drones_hull, 1152 + 1080)
+        self.assertEqual(result.warnings, [
+            "Fleet has been priced with camera ZZZ-999 removed because: value is missing",
+            "Fleet has been priced with drone AAA-111 removed because: weight is missing",
+        ])
 
-    def test_no_camera_drones_gives_zero_camera_rate(self):
+    def test_missing_camera_flag_is_fine_without_cameras(self):
         data = get_example_data()
+        data["detachable_cameras"] = []
         for drone in data["drones"]:
-            drone["has_detachable_camera"] = False
-        self.assertEqual(price(data).detachable_cameras[0].hull_rate, 0)
+            del drone["has_detachable_camera"]
+        result = price(data)
+        self.assertEqual(result.warnings, [])
+        self.assertAlmostEqual(result.net_prem.drones_hull, 2832)
+
+    def test_missing_camera_flag_kept_when_it_cannot_affect_pricing(self):
+        data = get_example_data()
+        data["max_drones_in_air"] = 1  # CCC-333 alone covers n, and AAA-111's rate 0.06 < 0.072
+        del data["drones"][0]["has_detachable_camera"]
+        result = price(data)
+        self.assertEqual(result.warnings, [
+            "Drone AAA-111: has_detachable_camera is missing, but this did not affect pricing because its hull rate "
+            "(0.06) is not above the camera rate (0.072) and at least 1 drones are known to take a camera",
+        ])
+        self.assertAlmostEqual(result.net_prem.total, 4042.114897099, places=6)
+
+    def test_missing_camera_flag_removes_drone_with_higher_rate(self):
+        data = get_example_data()
+        del data["drones"][1]["has_detachable_camera"]  # BBB-222: rate 0.096 > 0.072
+        self.assertEqual(price(data).warnings, [
+            "Fleet has been priced with drone BBB-222 removed because: has_detachable_camera is missing "
+            "and its hull rate (0.096) is above the camera rate (0.072)",
+        ])
+
+    def test_missing_camera_flag_removes_drone_that_could_change_m(self):
+        data = get_example_data()
+        del data["drones"][0]["has_detachable_camera"]  # only CCC-333 known, but n = 2
+        self.assertEqual(price(data).warnings, [
+            "Fleet has been priced with drone AAA-111 removed because: has_detachable_camera is missing "
+            "and fewer than 2 drones are known to take a camera, so it could change how many cameras are "
+            "charged the full rate",
+        ])
+
+    def test_cameras_removed_when_no_drone_takes_one(self):
+        data = get_example_data()
+        data["drones"][0]["has_detachable_camera"] = False
+        del data["drones"][2]["has_detachable_camera"]  # BBB-222 is already False
+        result = price(data)
+        self.assertEqual(result.warnings, [
+            "Fleet has been priced with all cameras removed because: every drone either has no "
+            "detachable camera or its has_detachable_camera is missing",
+        ])
+        self.assertIsNone(result.detachable_cameras[0].hull_premium)
+        self.assertEqual(result.net_prem.cameras_hull, 0)
+        self.assertAlmostEqual(result.net_prem.drones_hull, 2832)
 
 
 class TestExtensions(unittest.TestCase):

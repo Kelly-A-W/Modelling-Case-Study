@@ -10,16 +10,28 @@ from .parameters import (
     RIEBESELL_Z,
     TPL_BASE_RATE,
     WEIGHT_ADJUSTMENTS,
+    WEIGHT_BAND_LIMITS,
 )
 from .utils import gross_up, rank, riebesell
 
-NOT_PRICED = "Not priced: value is missing or zero"
+
+def weight_category(weight):
+    """Weight band for a band label or an exact weight in kg."""
+    if weight in WEIGHT_ADJUSTMENTS:
+        return weight
+    return next(band for band, limit in WEIGHT_BAND_LIMITS.items() if weight <= limit)
+
+
+def hull_rate(weight):
+    """Final hull rate for a weight: base rate x weight adjustment."""
+    return HULL_BASE_RATE * WEIGHT_ADJUSTMENTS[weight_category(weight)]
 
 
 def price_hull(drone):
     """Drone hull premium (Model!L:O)."""
+    drone.weight_category = weight_category(drone.weight)
     drone.hull_base_rate = HULL_BASE_RATE
-    drone.hull_weight_adjustment = WEIGHT_ADJUSTMENTS[drone.weight]
+    drone.hull_weight_adjustment = WEIGHT_ADJUSTMENTS[drone.weight_category]
     drone.hull_final_rate = drone.hull_base_rate * drone.hull_weight_adjustment
     drone.hull_premium = drone.value * drone.hull_final_rate
 
@@ -36,7 +48,7 @@ def price_tpl(drone):
 
 def camera_rate(drones):
     """Highest final hull rate among priced drones with a camera; 0 if none, as Excel's MAXIFS (Model!H33)."""
-    return max((d.hull_final_rate for d in drones if d.has_detachable_camera), default=0)
+    return max((d.hull_final_rate for d in drones if d.has_detachable_camera is True), default=0)
 
 
 def price_camera(camera, rate):
@@ -76,19 +88,61 @@ def apply_max_cameras_in_air(cameras, m, rng):
         camera.final_hull_premium = camera.hull_premium if camera.charged_full_rate else CAMERA_BASE_PREMIUM
 
 
-def _priced(items):
-    """Return the items with a value, flagging the rest (the spreadsheet leaves them blank)."""
-    for item in items:
-        if not item.value:
-            item.note = NOT_PRICED
-    return [item for item in items if item.value]
+def _can_price(submission, kind, item, problems):
+    """Record a warning for an item that can't be priced."""
+    if problems:
+        submission.warnings.append(
+            f"Fleet has been priced with {kind} {item.serial_number} removed because: {', '.join(problems)}"
+        )
+    return not problems
+
+
+def _camera_flag_ok(submission, drone, camera_drones, n):
+    """Keep a drone with a missing or invalid camera flag only if the flag can't change camera pricing.
+
+    It can't change the camera rate if the drone's hull rate is not above it, and it can't change
+    m = min(n, number of camera drones) if at least n drones are already known to take a camera.
+    """
+    problem = drone.camera_flag_problem()
+    if not problem:
+        return True
+    rate, max_rate = hull_rate(drone.weight), max(hull_rate(d.weight) for d in camera_drones)
+    if rate > max_rate:
+        reason = f"its hull rate ({rate:g}) is above the camera rate ({max_rate:g})"
+    elif len(camera_drones) < n:
+        reason = (f"fewer than {n} drones are known to take a camera, "
+                  "so it could change how many cameras are charged the full rate")
+    else:
+        submission.warnings.append(
+            f"Drone {drone.serial_number}: {problem}, but this did not affect pricing because its hull rate "
+            f"({rate:g}) is not above the camera rate ({max_rate:g}) and at least {n} drones are known to take a camera"
+        )
+        return True
+    return _can_price(submission, "drone", drone, [f"{problem} and {reason}"])
 
 
 def price_submission(submission, seed=None):
-    """Price every drone and camera, then apply the extensions. Pass a seed for reproducible tie-breaks."""
+    """Price every drone and camera that has the inputs it needs, then apply the extensions.
+
+    Items with missing or invalid inputs are left unpriced and listed in `submission.warnings`.
+    Pass a seed for reproducible tie-breaks.
+    """
     rng = random.Random(seed)
-    drones = _priced(submission.drones)
-    cameras = _priced(submission.detachable_cameras)
+    submission.warnings = []
+    n = submission.max_drones_in_air
+    cameras = [c for c in submission.detachable_cameras if _can_price(submission, "camera", c, c.problems())]
+    drones = [d for d in submission.drones if _can_price(submission, "drone", d, d.problems())]
+
+    # Cameras need a priceable drone to be mounted on; without one, only the drones are priced
+    camera_drones = [d for d in drones if d.has_detachable_camera is True]
+    if cameras and not camera_drones:
+        submission.warnings.append(
+            "Fleet has been priced with all cameras removed because: every drone either has no "
+            "detachable camera or its has_detachable_camera is missing"
+        )
+        cameras = []
+    if cameras:
+        drones = [d for d in drones if _camera_flag_ok(submission, d, camera_drones, n)]
 
     for drone in drones:
         price_hull(drone)
@@ -104,9 +158,8 @@ def price_submission(submission, seed=None):
         submission.brokerage,
     )
 
-    n = submission.max_drones_in_air
     # A camera can only fly on a flying drone that takes a camera
-    m = min(n, sum(d.has_detachable_camera for d in drones))
+    m = min(n, len(camera_drones))
     apply_max_drones_in_air(drones, n, rng)
     apply_max_cameras_in_air(cameras, m, rng)
 
