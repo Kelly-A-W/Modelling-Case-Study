@@ -30,7 +30,7 @@ On the example data, the model reproduces the spreadsheet: net £4,042.11 and gr
 | `drone_pricing/data_structure.py` | Dataclasses `Submission`, `Drone`, `Camera` and `Premiums`: input checks and the output structure |
 | `drone_pricing/pricing.py` | Pricing steps. Each function mirrors a spreadsheet calculation, and its docstring names the cells (e.g. `Model!L:O`) so values can be checked against the workbook |
 | `drone_pricing/parameters.py` | Rates, weight bands, Riebesell parameters and the extension fees (the spreadsheet's Parameters sheet) |
-| `drone_pricing/utils.py` | Riebesell curve, gross-up and random tie-break ranking |
+| `drone_pricing/utils.py` | Riebesell curve, gross-up, random tie-break ranking and rounding for display |
 | `drone_pricing/example_data.py` | The spreadsheet's example fleet |
 | `tests/` | Unit tests (`unittest`) |
 | `initial_documents/` | The original brief, spreadsheet and starter code |
@@ -52,6 +52,8 @@ The outputs are written into the same structure, so printing it shows everything
 - **Submission:** `net_prem` and `gross_prem` (the spreadsheet's summary), `net_prem_after_extensions`, `gross_prem_after_extensions`, and `warnings`.
 
 Extension results are stored in separate fields, so the spreadsheet figures stay visible and can be checked against the workbook.
+
+`main.py` prints premiums rounded to 2 decimal places. Rates and factors are printed as calculated, and neither the calculations nor the stored values are ever rounded.
 
 ## Current pricing model
 
@@ -259,15 +261,27 @@ If there are $m$ or fewer cameras, nothing changes.
    - If there are cameras, the drone is still priced when its flag can't change the camera pricing. This requires both (a) its hull rate is at or below $\text{CamRate}$, so the rate is unchanged, and (b) at least $n$ drones are known to take a camera, so $m$ is unchanged. A warning notes that the flag was missing but didn't affect pricing.
    - Otherwise, the drone is removed and everything else, including the cameras, is priced. An alternative would be to keep the drone and remove all the cameras instead.
 5. **No drone takes a camera:** if the fleet has cameras but no drone is known to take one (every flag is `False` or missing), the cameras are removed with a warning and the drones are still priced. Missing flags no longer matter in this case. The spreadsheet would give these cameras a £0 premium, which is misleading if you only look at the total.
+6. **Rounding only for display:** premiums are printed to 2 decimal places, but rounding happens only at that final step, so no rounding error builds up through the calculations.
 
 The tests check that the model matches the spreadsheet's values, and cover the Riebesell curve properties, the input checks, both extensions, random tie-breaks and missing data.
 
-## Limitations
+## Limitations and recommendations
 
-1. **Ties at the cut-off:** if drones tie on premium at rank $n$ (or cameras tie on value at rank $m$), which one is charged the full rate is random. The overall total is unaffected, but item-level premiums, and for drones the hull/TPL split, can change between runs unless a seed is passed.
+### Pricing
+
+1. **TPL is driven by the drone's value:** BLP = 2% × Value, but third-party liability depends on what the drone could hit, not what it's worth. A cheap, heavy drone can do as much damage as an expensive one, and a drone with no value gets no TPL premium. *Recommendation:* rate TPL on exposure drivers such as weight, speed or type of operation.
+2. **Grounded drones pay TPL:** extension 1 splits the £150 between hull and TPL, but a drone that isn't flying has almost no third-party exposure. *Recommendation:* put the whole fee on hull, to cover ground risks such as theft or storage damage.
+3. **Flat fees ignore value:** a grounded £50,000 drone and a grounded £500 drone both pay £150 (£50 for cameras). A drone whose full premium is under £150 is even charged more for not flying. *Recommendation:* charge a reduced rate, e.g. a percentage of the full hull premium, capped at the full premium.
+4. **Weight bands create price jumps:** going from 5.0 kg to 5.1 kg raises the hull rate by 20%. *Recommendation:* now that exact weights are accepted, interpolate the adjustment between bands.
+5. **Cameras are priced at the worst case:** every camera takes the highest rate among the camera drones. This may overcharge fleets where the riskiest drone rarely carries a camera. *Recommendation:* if the data is available, weight the camera rate by how often each drone carries a camera.
+6. **Missing pricing elements:** there is no minimum premium, insurance premium tax, hull deductible, claims-history adjustment, or usage factor (location, pilot experience, flight hours).
+7. **Gross or net:** the Parameters sheet labels the base rates "Gross" (cell B6), but the premium summary treats their sums as net and grosses them up again for brokerage. *Recommendation:* confirm whether brokerage is being applied twice.
+
+### Implementation
+
+1. **Ties at the cut-off:** if drones tie on premium at rank $n$ (or cameras tie on value at rank $m$), which one is charged the full rate is random. The overall total is unaffected, but item-level premiums, and for drones the hull/TPL split, can change between runs. *Recommendation:* store the seed used in the output, so any quote can be reproduced exactly.
 2. **Removed items are excluded from the total:** the quoted premium is understated until the missing information is supplied. The warnings make this visible.
-3. **Gross or net:** the spreadsheet's Parameters sheet labels the base rates "Gross", but the premium summary treats their sums as net and grosses them up for brokerage. This is worth confirming.
-
-## Recommendations
-
-1. **Cap at the full premium:** as written, a drone whose full premium is under £150 would be charged more for not flying. I'd suggest charging whichever is lower, the full premium or £150 (and likewise £50 for cameras).
+3. **Serial numbers aren't checked:** warnings identify items by serial number, so a missing or duplicate serial makes a warning ambiguous. *Recommendation:* require unique serial numbers.
+4. **Warnings are free text:** *Recommendation:* use structured warnings (item, field, reason), so other systems can process them.
+5. **Parameters are hard-coded:** changing a rate means editing code. *Recommendation:* load the parameters from a versioned JSON file, giving an audit trail of which parameters priced which quote.
+6. **No input route for real submissions:** `main.py` only prices the example. *Recommendation:* accept a JSON file path.

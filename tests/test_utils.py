@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from drone_pricing.utils import gross_up, rank, riebesell
+from drone_pricing.utils import gross_up, rank, riebesell, round_for_display
 
 B, Z = 1_000_000, 0.2
 
@@ -23,6 +23,16 @@ class TestUtils(unittest.TestCase):
 
     def test_rank_highest_first(self):
         self.assertEqual(rank([1, 3, 2], lambda x: x, random.Random()), [3, 2, 1])
+
+    def test_round_for_display(self):
+        output = {
+            "drones": [{"hull_premium": 107.99999999999999, "tpl_ilf": 0.5270496569951215, "rank": 1}],
+            "net_prem": {"total": 4042.1148970985364},
+        }
+        self.assertEqual(round_for_display(output), {
+            "drones": [{"hull_premium": 108.0, "tpl_ilf": 0.5270496569951215, "rank": 1}],
+            "net_prem": {"total": 4042.11},
+        })
 
 
 if __name__ == "__main__":
