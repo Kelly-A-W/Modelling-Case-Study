@@ -1,6 +1,8 @@
 # Drone Pricing Model
 
-A Python rebuild of the hx drone exposure-rating spreadsheet. It prices hull and third-party liability (TPL) cover for a fleet of drones and detachable cameras, and adds the two suggested extensions and handling for missing data. It uses the standard library only.
+A Python rebuild of the hx drone exposure-rating spreadsheet. It prices hull and third-party liability (TPL) cover for a fleet of drones and detachable cameras, and adds the two suggested extensions and handling for missing data. It uses the standard library only. 
+
+These types of models are used by customers of hyperexponential to price binders, and the output needs to readable for them. 
 
 ## Quick start
 
@@ -12,6 +14,7 @@ python3 -m unittest        # run the tests
 ```
 
 ```python
+# Usage Example: how to price your own fleet with inputs contained in "data"
 from drone_pricing.data_structure import Submission
 from drone_pricing.pricing import price_submission
 
@@ -47,9 +50,11 @@ The input is a dict in the starter code's layout. Only the inputs are required. 
 
 The outputs are written into the same structure, so printing it shows everything:
 
-- **Drone:** `weight_category`, `hull_base_rate`, `hull_weight_adjustment`, `hull_final_rate`, `hull_premium`, `tpl_base_rate`, `tpl_base_layer_premium`, `tpl_ilf` and `tpl_layer_premium`. From the extension: `rank`, `charged_full_rate`, `final_hull_premium` and `final_tpl_premium`.
-- **Camera:** `hull_rate` and `hull_premium`. From the extension: `rank`, `charged_full_rate` and `final_hull_premium`.
-- **Submission:** `net_prem` and `gross_prem` (the spreadsheet's summary), `net_prem_after_extensions`, `gross_prem_after_extensions`, and `warnings`.
+| Level | Pricing outputs | Extension outputs |
+|---|---|---|
+| Submission | `net_prem`, `gross_prem`, `warnings` | `net_prem_after_extensions`, `gross_prem_after_extensions` |
+| Drone | `weight_category`, `hull_base_rate`, `hull_weight_adjustment`, `hull_final_rate`, `hull_premium`, `tpl_base_rate`, `tpl_base_layer_premium`, `tpl_ilf`, `tpl_layer_premium` | `rank`, `charged_full_rate`, `final_hull_premium`, `final_tpl_premium` |
+| Camera | `hull_rate`, `hull_premium` | `rank`, `charged_full_rate`, `final_hull_premium` |
 
 Extension results are stored in separate fields, so the spreadsheet figures stay visible and can be checked against the workbook.
 
@@ -61,10 +66,10 @@ The model formulas for hull and TPL cover for drones and camera attachments are 
 
 ### Hull premium
 
-Let $i$ be a drone in fleet $j$. The **gross hull premium** (GHP) for drone $i$ is:
+Let $i$ be a drone in fleet $j$. The **drone hull premium** (DHP) for drone $i$ is:
 
 $$
-\text{GHP}(i) = 0.06 \times \text{WeightAdj}(i) \times \text{Value}(i)
+\text{DHP}(i) = 0.06 \times \text{WeightAdj}(i) \times \text{Value}(i)
 $$
 
 where $\text{Value}(i)$ is the value of drone $i$, and $\text{WeightAdj}(i)$ is the weight adjustment factor:
@@ -79,7 +84,7 @@ $$
 \end{cases}
 $$
 
-> **Note:** $\text{GHP}(i)$ is `NA` if $\text{Value}(i)$ is missing or zero.
+> **Note:** $\text{DHP}(i)$ is `NA` if $\text{Value}(i)$ is missing or zero.
 
 ### TPL premium
 
@@ -99,13 +104,13 @@ $$
 \text{ILF}(i) = R\big(\text{Limit}(i) + \text{Excess}(i)\big) - R\big(\text{Excess}(i)\big)
 $$
 
-The **gross liability premium** (GLP) for drone $i$ is then:
+The **drone liability premium** (DLP) for drone $i$ is then:
 
 $$
-\text{GLP}(i) = \text{BLP}(i) \times \text{ILF}(i)
+\text{DLP}(i) = \text{BLP}(i) \times \text{ILF}(i)
 $$
 
-> **Note:** $\text{GLP}(i)$ is `NA` if $\text{Value}(i)$ is missing or zero.
+> **Note:** $\text{DLP}(i)$ is `NA` if $\text{Value}(i)$ is missing or zero.
 
 ### Detachable cameras
 
@@ -128,8 +133,8 @@ $$
 The per-item premiums are summed across the fleet:
 
 $$
-\text{Hull} = \sum_i \text{GHP}(i), \qquad
-\text{TPL} = \sum_i \text{GLP}(i), \qquad
+\text{Hull} = \sum_i \text{DHP}(i), \qquad
+\text{TPL} = \sum_i \text{DLP}(i), \qquad
 \text{Camera} = \sum_k \text{CHP}(k)
 $$
 
@@ -165,14 +170,6 @@ $$
 R(x) = \left(\frac{x}{B}\right)^{\log_2(1 + z)}
 $$
 
-The workbook implements this as a VBA function (`Module1`):
-
-```vba
-Function Riebesell(riebesell_base_limit As Double, riebesell_z As Double, x As Double) As Double
-    Riebesell = (x / riebesell_base_limit) ^ Application.Log(1 + riebesell_z, 2)
-End Function
-```
-
 Key properties:
 
 - $R(B) = 1$: the base limit is priced at exactly the base layer premium.
@@ -182,7 +179,7 @@ Key properties:
 
 #### Pricing a layer
 
-A layer "$L$ xs $E$" pays losses between $E$ and $E + L$, so its factor is the difference between the curve at the top and the bottom of the layer:
+A layer of $L$ in excess of $E$ pays losses between $E$ and $E + L$, so its factor is the difference between the curve at the top and the bottom of the layer:
 
 $$
 \text{ILF} = R(E + L) - R(E)
@@ -194,10 +191,10 @@ $$
 
 Customers may have a large fleet of $N$ drones but warrant that at most $n$ will fly at any one time (`max_drones_in_air`). The $n$ drones with the highest premiums are charged the full rate, and every other drone is charged a fixed £150.
 
-**Step 1.** Calculate $\text{GHP}(i)$ and $\text{GLP}(i)$ for each drone as above, and combine them:
+**Step 1.** Calculate $\text{DHP}(i)$ and $\text{DLP}(i)$ for each drone as above, and combine them:
 
 $$
-P(i) = \text{GHP}(i) + \text{GLP}(i)
+P(i) = \text{DHP}(i) + \text{DLP}(i)
 $$
 
 **Step 2.** Rank the drones with $\text{Value}(i) > 0$ by $P(i)$, highest first. Let $r(i)$ be drone $i$'s rank, with ties broken at random (pass a seed to make the result reproducible).
@@ -215,8 +212,8 @@ $$
 **Step 4.** So that the premium summary can still show hull and TPL separately, split the £150 between them in the same proportions as the drone's full premium:
 
 $$
-\text{GHP}^{\ast}(i) = P^{\ast}(i) \times \frac{\text{GHP}(i)}{P(i)}, \qquad
-\text{GLP}^{\ast}(i) = P^{\ast}(i) \times \frac{\text{GLP}(i)}{P(i)}
+\text{DHP}^{\ast}(i) = P^{\ast}(i) \times \frac{\text{DHP}(i)}{P(i)}, \qquad
+\text{DLP}^{\ast}(i) = P^{\ast}(i) \times \frac{\text{DLP}(i)}{P(i)}
 $$
 
 If $N \le n$, every drone ranks in the top $n$, so nothing changes.
@@ -250,8 +247,11 @@ If there are $m$ or fewer cameras, nothing changes.
 - **Example data:** the starter `.py` was missing the `tpl_limit` and `tpl_excess` values (a syntax error), and it named the third drone `AAA-123`. The values here are taken from the spreadsheet instead: `CCC-333`, and limits/excesses of 1m/0, 4m/1m and 5m/5m.
 - **Cameras charged the full rate:** the brief says "the n cameras", but a camera can only fly on a flying drone that takes a camera, so $m = \min(n, \lvert C \rvert)$.
 - **Ties** in the extension rankings are broken at random rather than by serial number.
+- **Reduced drone fee:** the brief doesn't say what the £150 covers. At most $n$ drones fly at any one time, but drones can take turns, so the £150 is treated as a reduced rate for a drone that flies less often. It is split between hull and TPL in the same proportions as the drone's full premium. Another possible interpretation is that the top $n$ full premiums already pay for the most flying exposure possible at any one time, so the £150 only covers the remaining, mostly non-flying hull risk, and would go entirely to hull.
 
 ## My improvements
+
+The following are improvements that I made to the model to better catch errors and be more robust to missing data and edge cases:
 
 1. **Exact weights:** `weight` can be a band label or an exact weight in kg, which is mapped to its band and shown in `weight_category`. Each band includes its upper limit: 5 kg is in "0 - 5kg" and 20 kg is in "10 - 20kg", since the top band is "> 20kg".
 2. **Partial pricing with warnings:** if a drone or camera has missing or invalid information (e.g. a negative value, an unknown weight label, a limit of 0), only that item is removed. The rest of the fleet is priced, and `warnings` lists what was removed and why. For example: *"Fleet has been priced with camera ZZZ-999 removed because: value is missing"*. Submission-level inputs (`brokerage`, `max_drones_in_air`) still raise an error, because nothing can be priced without them.
@@ -260,7 +260,7 @@ If there are $m$ or fewer cameras, nothing changes.
    - If there are no cameras to price, the flag isn't needed and the drone is priced.
    - If there are cameras, the drone is still priced when its flag can't change the camera pricing. This requires both (a) its hull rate is at or below $\text{CamRate}$, so the rate is unchanged, and (b) at least $n$ drones are known to take a camera, so $m$ is unchanged. A warning notes that the flag was missing but didn't affect pricing.
    - Otherwise, the drone is removed and everything else, including the cameras, is priced. An alternative would be to keep the drone and remove all the cameras instead.
-5. **No drone takes a camera:** if the fleet has cameras but no drone is known to take one (every flag is `False` or missing), the cameras are removed with a warning and the drones are still priced. Missing flags no longer matter in this case. The spreadsheet would give these cameras a £0 premium, which is misleading if you only look at the total.
+5. **No drone takes a camera:** if the fleet has cameras but `has_detachable_camera` is `False` or missing for every drone, only the drones are priced (including the drones with missing `has_detachable_camera`). A warning says the cameras could not be priced for this reason. The spreadsheet would give these cameras a £0 premium, which is misleading if you only look at the total.
 6. **Rounding only for display:** premiums are printed to 2 decimal places, but rounding happens only at that final step, so no rounding error builds up through the calculations.
 
 The tests check that the model matches the spreadsheet's values, and cover the Riebesell curve properties, the input checks, both extensions, random tie-breaks and missing data.
@@ -269,13 +269,12 @@ The tests check that the model matches the spreadsheet's values, and cover the R
 
 ### Pricing
 
-1. **TPL is driven by the drone's value:** BLP = 2% × Value, but third-party liability depends on what the drone could hit, not what it's worth. A cheap, heavy drone can do as much damage as an expensive one, and a drone with no value gets no TPL premium. *Recommendation:* rate TPL on exposure drivers such as weight, speed or type of operation.
-2. **Grounded drones pay TPL:** extension 1 splits the £150 between hull and TPL, but a drone that isn't flying has almost no third-party exposure. *Recommendation:* put the whole fee on hull, to cover ground risks such as theft or storage damage.
-3. **Flat fees ignore value:** a grounded £50,000 drone and a grounded £500 drone both pay £150 (£50 for cameras). A drone whose full premium is under £150 is even charged more for not flying. *Recommendation:* charge a reduced rate, e.g. a percentage of the full hull premium, capped at the full premium.
-4. **Weight bands create price jumps:** going from 5.0 kg to 5.1 kg raises the hull rate by 20%. *Recommendation:* now that exact weights are accepted, interpolate the adjustment between bands.
-5. **Cameras are priced at the worst case:** every camera takes the highest rate among the camera drones. This may overcharge fleets where the riskiest drone rarely carries a camera. *Recommendation:* if the data is available, weight the camera rate by how often each drone carries a camera.
-6. **Missing pricing elements:** there is no minimum premium, insurance premium tax, hull deductible, claims-history adjustment, or usage factor (location, pilot experience, flight hours).
-7. **Gross or net:** the Parameters sheet labels the base rates "Gross" (cell B6), but the premium summary treats their sums as net and grosses them up again for brokerage. *Recommendation:* confirm whether brokerage is being applied twice.
+1. **TPL is driven by the drone's value:** BLP = 2% × Value, but third-party liability depends on what the drone could hit, not what it's worth. A cheap, heavy drone can do as much damage as an expensive one. *Recommendation:* rate TPL on exposure drivers such as weight, speed or type of operation.
+2. **Flat fees ignore value:** outside the top $n$, a £50,000 drone and a £500 drone both pay £150 (£50 for cameras). A drone whose full premium is under £150 is even charged more for being outside the top $n$. *Recommendation:* charge a reduced rate, e.g. a percentage of the drone's full premium.
+3. **Weight bands create price jumps:** going from 5.0 kg to 5.1 kg raises the hull rate by 20%. *Recommendation:* now that exact weights are accepted, interpolate the adjustment between bands.
+4. **Cameras are priced at the worst case:** every camera takes the highest rate among the camera drones. This may overcharge fleets where the riskiest drone rarely carries a camera. *Recommendation:* if the data is available, weight the camera rate by how often each drone carries a camera.
+5. **Missing pricing elements:** there is no minimum premium, insurance premium tax, hull deductible, claims-history adjustment, or usage factor (location, pilot experience, flight hours).
+6. **Gross or net:** the Parameters sheet labels the base rates "Gross" (cell B6), but the premium summary treats their sums as net and grosses them up again for brokerage. *Recommendation:* confirm whether brokerage is being applied twice.
 
 ### Implementation
 
