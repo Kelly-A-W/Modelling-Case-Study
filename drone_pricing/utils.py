@@ -15,4 +15,4 @@ def rank(items, key, rng):
     """Sort items by key, highest first, breaking ties at random."""
     items = list(items)
     rng.shuffle(items)
-    return sorted(items, key=key, reverse=True)  # stable sort keeps the shuffled order within ties
+    return sorted(items, key=key, reverse=True)

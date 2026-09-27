@@ -1,8 +1,10 @@
 """Example inputs from the spreadsheet.
 
 Same layout as the starter code, with the missing TPL limits/excesses and the
-third drone's serial number (CCC-333) taken from the xlsm. Output placeholders
-are omitted: the model creates and fills them.
+third drone's serial number (CCC-333) taken from the xlsm. I decided to omit 
+output placeholders since I think it is more practical to only input what is 
+needed, and the model creates and fills them. However, the model will still work 
+if placeholders are present. 
 """
 
 

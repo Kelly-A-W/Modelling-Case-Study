@@ -40,7 +40,7 @@ def _from_dict(cls, data):
 class Drone:
     serial_number: str
     value: float
-    weight: str | float  # band label, e.g. "0 - 5kg", or exact weight in kg
+    weight: str | float
     has_detachable_camera: bool
     tpl_limit: float
     tpl_excess: float
